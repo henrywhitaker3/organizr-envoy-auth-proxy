@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/henrywhitaker3/windowframe/cache"
 )
 
 type Server struct {
@@ -22,6 +24,9 @@ type Options struct {
 	URL  *url.URL
 	// Organizr appends the token cookie with a uuid from config
 	UUID string
+
+	CacheEnabled  bool
+	CacheDuration time.Duration
 }
 
 func New(opts Options) *Server {
@@ -73,6 +78,7 @@ type User struct {
 
 func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 	client := buildClient()
+	cache := cache.NewExpiringCache[string, User]()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("handling ext-authz request")
@@ -84,6 +90,16 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req = req.WithContext(r.Context())
+
+		if opts.CacheEnabled {
+			if token, err := req.Cookie(tokenCookieName(opts.UUID)); err == nil {
+				if user, ok := cache.Get(r.Context(), token.Value); ok {
+					slog.Info("using cached authentication", "user", user)
+					success(w, user)
+					return
+				}
+			}
+		}
 
 		resp, err := client.Do(req)
 		if err != nil {
@@ -115,11 +131,21 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if opts.CacheEnabled {
+			if token, err := req.Cookie(tokenCookieName(opts.UUID)); err == nil {
+				cache.Put(r.Context(), token.Value, user, opts.CacheDuration)
+			}
+		}
+
 		slog.Info("user authenticated", "user", user)
-		w.Header().Set("X-Organizr-User", user.Response.Data.User)
-		w.Header().Set("X-Organizr-Email", user.Response.Data.Email)
-		w.WriteHeader(http.StatusOK)
+		success(w, user)
 	}
+}
+
+func success(w http.ResponseWriter, user User) {
+	w.Header().Set("X-Organizr-User", user.Response.Data.User)
+	w.Header().Set("X-Organizr-Email", user.Response.Data.Email)
+	w.WriteHeader(http.StatusOK)
 }
 
 func redirect(w http.ResponseWriter, url *url.URL) {
@@ -127,12 +153,16 @@ func redirect(w http.ResponseWriter, url *url.URL) {
 	w.WriteHeader(http.StatusFound)
 }
 
+func tokenCookieName(uuid string) string {
+	return fmt.Sprintf("organizr_token_%s", uuid)
+}
+
 func buildRequest(incoming *http.Request, opts Options) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, opts.URL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	if cookie, err := incoming.Cookie(fmt.Sprintf("organizr_token_%s", opts.UUID)); err == nil {
+	if cookie, err := incoming.Cookie(tokenCookieName(opts.UUID)); err == nil {
 		req.AddCookie(&http.Cookie{
 			Name:        cookie.Name,
 			Path:        cookie.Path,

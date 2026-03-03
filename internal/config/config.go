@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/henrywhitaker3/windowframe/config"
 )
@@ -30,8 +31,10 @@ func (u URL) URL() (*url.URL, error) {
 }
 
 type Config struct {
-	LogLevel string `env:"LOG_LEVEL,default=info"`
-	Port     int    `env:"PORT, default=12345"`
+	LogLevel       string        `env:"LOG_LEVEL,default=info"`
+	Port           int           `env:"PORT, default=12345"`
+	CacheResponses bool          `env:"CACHE_RESPONSES,default=true"`
+	CacheDuration  time.Duration `env:"CACHE_DURATION,default=5m"`
 
 	Organizr URL `env:",prefix=ORGANIZR_"`
 }
