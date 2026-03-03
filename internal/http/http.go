@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/henrywhitaker3/windowframe/cache"
@@ -22,8 +23,6 @@ type Server struct {
 type Options struct {
 	Port int
 	URL  *url.URL
-	// Organizr appends the token cookie with a uuid from config
-	UUID string
 
 	CacheEnabled  bool
 	CacheDuration time.Duration
@@ -92,7 +91,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		req = req.WithContext(r.Context())
 
 		if opts.CacheEnabled {
-			if token, err := req.Cookie(tokenCookieName(opts.UUID)); err == nil {
+			if token := tokenCookie(req); token != nil {
 				if user, ok := cache.Get(r.Context(), token.Value); ok {
 					slog.Info("using cached authentication", "user", user)
 					success(w, user)
@@ -132,7 +131,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if opts.CacheEnabled {
-			if token, err := req.Cookie(tokenCookieName(opts.UUID)); err == nil {
+			if token := tokenCookie(req); token != nil {
 				cache.Put(r.Context(), token.Value, user, opts.CacheDuration)
 			}
 		}
@@ -140,6 +139,15 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("user authenticated", "user", user)
 		success(w, user)
 	}
+}
+
+func tokenCookie(r *http.Request) *http.Cookie {
+	for _, c := range r.Cookies() {
+		if strings.HasPrefix(c.Name, "organizr_token_") {
+			return c
+		}
+	}
+	return nil
 }
 
 func success(w http.ResponseWriter, user User) {
@@ -153,16 +161,12 @@ func redirect(w http.ResponseWriter, url *url.URL) {
 	w.WriteHeader(http.StatusFound)
 }
 
-func tokenCookieName(uuid string) string {
-	return fmt.Sprintf("organizr_token_%s", uuid)
-}
-
 func buildRequest(incoming *http.Request, opts Options) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, opts.URL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	if cookie, err := incoming.Cookie(tokenCookieName(opts.UUID)); err == nil {
+	if cookie := tokenCookie(incoming); cookie != nil {
 		req.AddCookie(&http.Cookie{
 			Name:        cookie.Name,
 			Path:        cookie.Path,

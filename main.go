@@ -41,7 +41,6 @@ func main() {
 	http := http.New(http.Options{
 		URL:           org,
 		Port:          conf.Port,
-		UUID:          conf.Organizr.UUID,
 		CacheEnabled:  conf.CacheResponses,
 		CacheDuration: conf.CacheDuration,
 	})

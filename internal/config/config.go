@@ -13,7 +13,6 @@ type URL struct {
 	Host   string `env:"HOST"`
 	Scheme string `env:"SCHEME,default=https"`
 	Group  *int   `env:"GROUP"`
-	UUID   string `env:"UUID"`
 }
 
 func (u URL) URL() (*url.URL, error) {
