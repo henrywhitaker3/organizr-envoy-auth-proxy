@@ -27,6 +27,7 @@ type Options struct {
 func New(opts Options) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/ext-authz", extauthHandler(opts))
+	mux.HandleFunc("/auth/ext-authz/", extauthHandler(opts))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("unhandled request", "path", r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
