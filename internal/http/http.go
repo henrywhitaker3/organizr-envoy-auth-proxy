@@ -81,12 +81,13 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 	cache := cache.NewExpiringCache[string, User]()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("handling ext-authz request", "headers", r.Header)
+		slog.Debug("handling ext-authz request")
+		start := time.Now()
 
 		req, err := buildRequest(r, opts)
 		if err != nil {
 			slog.Error("could not build auth request", "error", err)
-			redirect(w, opts)
+			redirect(r, w, opts)
 			return
 		}
 		req = req.WithContext(r.Context())
@@ -94,7 +95,13 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		if opts.CacheEnabled {
 			if token := tokenCookie(req); token != nil {
 				if user, ok := cache.Get(r.Context(), token.Value); ok {
-					slog.Info("using cached authentication", "user", user)
+					slog.Info(
+						"using cached authentication",
+						"user",
+						user,
+						"latency",
+						time.Since(start).String(),
+					)
 					success(w, user)
 					return
 				}
@@ -103,8 +110,8 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 
 		user, err := authorize(client, req)
 		if err != nil {
-			slog.Error("authorize failure", "error", err)
-			redirect(w, opts)
+			slog.Debug("authorize failure", "error", err)
+			redirect(r, w, opts)
 			return
 		}
 
@@ -114,7 +121,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		slog.Info("user authenticated", "user", user)
+		slog.Info("user authenticated", "user", user, "latency", time.Since(start).String())
 		success(w, user)
 	}
 }
@@ -160,10 +167,13 @@ func success(w http.ResponseWriter, user User) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func redirect(w http.ResponseWriter, opts Options) {
+func redirect(incoming *http.Request, w http.ResponseWriter, opts Options) {
 	to := opts.RedirectTo
 	if to == "" {
 		to = fmt.Sprintf("%s://%s", opts.URL.Scheme, opts.URL.Host)
+	}
+	if referer := incoming.Header.Get("Referer"); referer != "" {
+		to = fmt.Sprintf("%s?return=%s", url.QueryEscape(referer))
 	}
 	w.Header().Set("location", to)
 	w.WriteHeader(http.StatusFound)
