@@ -100,32 +100,9 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		resp, err := client.Do(req)
+		user, err := authorize(client, req)
 		if err != nil {
-			slog.Error("failed calling organizr api", "error", err)
-			redirect(w, opts.URL)
-			return
-		}
-		defer resp.Body.Close()
-
-		slog.Debug("got response", "code", resp.StatusCode)
-
-		if resp.StatusCode != http.StatusOK {
-			slog.Debug("user not autneticated")
-			redirect(w, opts.URL)
-			return
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			slog.Error("failed to read response body", "error", err)
-			redirect(w, opts.URL)
-			return
-		}
-
-		var user User
-		if err := json.Unmarshal(body, &user); err != nil {
-			slog.Error("failed to unmarshal response", "error", err)
+			slog.Error("authorize failure", "error", err)
 			redirect(w, opts.URL)
 			return
 		}
@@ -139,6 +116,32 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("user authenticated", "user", user)
 		success(w, user)
 	}
+}
+
+func authorize(client *http.Client, req *http.Request) (User, error) {
+	resp, err := client.Do(req)
+	if err != nil {
+		return User{}, fmt.Errorf("call api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	slog.Debug("got response", "code", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		return User{}, fmt.Errorf("non-200 status code: %w", err)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return User{}, fmt.Errorf("ready response body: %w", err)
+	}
+
+	var user User
+	if err := json.Unmarshal(body, &user); err != nil {
+		return User{}, fmt.Errorf("unmarshal response body: %w", err)
+	}
+
+	return user, nil
 }
 
 func tokenCookie(r *http.Request) *http.Cookie {
