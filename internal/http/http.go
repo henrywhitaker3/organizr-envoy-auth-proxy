@@ -81,7 +81,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 	cache := cache.NewExpiringCache[string, User]()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("handling ext-authz request")
+		slog.Debug("handling ext-authz request", "headers", r.Header)
 
 		req, err := buildRequest(r, opts)
 		if err != nil {
