@@ -21,8 +21,9 @@ type Server struct {
 }
 
 type Options struct {
-	Port int
-	URL  *url.URL
+	Port       int
+	URL        *url.URL
+	RedirectTo string
 
 	CacheEnabled  bool
 	CacheDuration time.Duration
@@ -85,7 +86,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		req, err := buildRequest(r, opts)
 		if err != nil {
 			slog.Error("could not build auth request", "error", err)
-			redirect(w, opts.URL)
+			redirect(w, opts)
 			return
 		}
 		req = req.WithContext(r.Context())
@@ -103,7 +104,7 @@ func extauthHandler(opts Options) func(w http.ResponseWriter, r *http.Request) {
 		user, err := authorize(client, req)
 		if err != nil {
 			slog.Error("authorize failure", "error", err)
-			redirect(w, opts.URL)
+			redirect(w, opts)
 			return
 		}
 
@@ -159,8 +160,12 @@ func success(w http.ResponseWriter, user User) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func redirect(w http.ResponseWriter, url *url.URL) {
-	w.Header().Set("location", fmt.Sprintf("%s://%s", url.Scheme, url.Host))
+func redirect(w http.ResponseWriter, opts Options) {
+	to := opts.RedirectTo
+	if to == "" {
+		to = fmt.Sprintf("%s://%s", opts.URL.Scheme, opts.URL.Host)
+	}
+	w.Header().Set("location", to)
 	w.WriteHeader(http.StatusFound)
 }
 

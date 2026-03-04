@@ -43,6 +43,7 @@ func main() {
 		Port:          conf.Port,
 		CacheEnabled:  conf.CacheResponses,
 		CacheDuration: conf.CacheDuration,
+		RedirectTo:    conf.RedirectTo,
 	})
 	go func() {
 		slog.Info("starting http server", "port", conf.Port)

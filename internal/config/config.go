@@ -35,7 +35,8 @@ type Config struct {
 	CacheResponses bool          `env:"CACHE_RESPONSES,default=true"`
 	CacheDuration  time.Duration `env:"CACHE_DURATION,default=5m"`
 
-	Organizr URL `env:",prefix=ORGANIZR_"`
+	Organizr   URL    `env:",prefix=ORGANIZR_"`
+	RedirectTo string `env:"REDIRECT_TO"`
 }
 
 func Parse() (*Config, error) {
