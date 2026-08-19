@@ -2,7 +2,7 @@ FROM alpine:3.23.3 AS certs
 
 RUN apk add ca-certificates
 
-FROM golang:1.26 AS gob
+FROM golang:1.27 AS gob
 
 ARG VERSION
 
